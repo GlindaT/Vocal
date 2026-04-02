@@ -184,19 +184,37 @@ with tab3:
 # -----------------------------
 # PESTAÑA 4: ESTUDIO
 # -----------------------------
+from audio_recorder_streamlit import audio_recorder
+
 with tab4:
-    st.header("Estudio")
-    song_options = get_song_options()
+    st.header("Estudio - Grabación")
     
+    song_options = get_song_options()
     if len(song_options) == 0:
         st.warning("No hay pistas guardadas todavía.")
     else:
         selected_song_option = st.selectbox("Selecciona una pista para grabar", song_options, key="studio_select")
-        selected_song = get_song_by_option(selected_song_option)
         
-        if selected_song:
-            st.write("Pista seleccionada:", selected_song["title"], "-", selected_song["artist"])
-
+        # --- AQUÍ VA EL BOTÓN DE GRABAR ---
+        st.write("Presiona el botón para empezar a grabar tu voz:")
+        audio_bytes = audio_recorder(
+            text="Haz clic para grabar",
+            recording_color="#e74c3c",
+            neutral_color="#96a5a6",
+            icon_name="microphone",
+            icon_size="2x",
+        )
+        
+        if audio_bytes:
+            st.audio(audio_bytes, format="audio/wav")
+            
+            # Guardar el archivo grabado
+            if st.button("Guardar grabación"):
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                file_path = f"data/recordings/grabacion_{timestamp}.wav"
+                with open(file_path, "wb") as f:
+                    f.write(audio_bytes)
+                st.success(f"Grabación guardada en {file_path}")
 # -----------------------------
 # PESTAÑA 5: CONFIGURACIONES
 # -----------------------------
