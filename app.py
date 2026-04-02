@@ -57,7 +57,7 @@ with tabs[0]:
                 progreso = np.clip((diferencia + rango) / (rango * 2), 0.0, 1.0)
                 
                 # Visualización visual
-                st.progress(progreso)
+                st.progress(float(progreso))
                 
                 if 0.48 <= progreso <= 0.52:
                     st.success("🎯 ¡AFINADO! Perfecto.")
