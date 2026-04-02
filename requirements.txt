@@ -1,7 +1,7 @@
 streamlit
 streamlit-webrtc
-opensndfile
 librosa
 numpy
 plotly
-av==10.0.0
+pydub
+av
