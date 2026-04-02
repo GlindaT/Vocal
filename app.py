@@ -1,9 +1,10 @@
 import streamlit as st
-from streamlit_webrtc import webrtc_streamer, WebRtcMode, AudioProcessorBase
-import av
-import numpy as np
+from streamlit_mic_recorder import mic_recorder
+import io
 import librosa
+import numpy as np
 import plotly.graph_objects as go
+from pydub import AudioSegment
 
 # --- PROCESADOR DE AUDIO EN VIVO ---
 class AudioProcessor(AudioProcessorBase):
@@ -57,54 +58,67 @@ class AfinadorProcessor(AudioProcessorBase):
             
         return frame
 
-# --- DENTRO DE TU PESTAÑA 1 ---
+# --- PESTAÑA 1: AFINADOR ---
 with tabs[0]:
-    st.header("🎯 Afinador en Tiempo Real")
+    st.header("🎯 Afinador de Voz")
     
-    # 1. Diccionario de notas (Asegúrate de que cierre bien con })
-    frecuencias = {
-        "C (Do)": 261.63, 
-        "D (Re)": 293.66, 
-        "E (Mi)": 329.63, 
-        "F (Fa)": 349.23, 
-        "G (Sol)": 392.00, 
-        "A (La)": 440.00, 
-        "B (Si)": 493.88
-    }
+    frecuencias = {"C": 261.63, "D": 293.66, "E": 329.63, "F": 349.23, "G": 392.00, "A": 440.00, "B": 493.88}
     
-    nota_sel = st.selectbox("Nota Objetivo", list(frecuencias.keys()))
-    hz_obj = frecuencias[nota_sel]
+    col_a, col_b = st.columns([1, 2])
+    with col_a:
+        nota_sel = st.selectbox("Nota Objetivo", list(frecuencias.keys()), key="nota_afin")
+        hz_obj = frecuencias[nota_sel]
+    
+    # Grabador automático: Al darle a Stop procesa de inmediato
+    with col_b:
+        audio = mic_recorder(start_prompt="🎤 Empezar a Afinar", stop_prompt="⏹️ Analizar", key='afinador_v3')
 
-    # 2. El Streamer de WebRTC (Revisa que cada argumento termine en coma ,)
-    webrtc_ctx = webrtc_streamer(
-        key="afinador-live",
-        mode=WebRtcMode.SENDRECV,
-        audio_receiver_size=256,
-        media_stream_constraints={"video": False, "audio": True},
-        async_processing=True,
-    )
-
-    # 3. Lógica del gráfico (Solo si el valor existe)
-    actual = st.session_state.get("pitch_vivo", 0.0)
+    # Si no hay audio aún, mostramos la aguja en 0
+    pitch_mostrar = 0.0
     
+    if audio:
+        try:
+            # Procesamiento flash
+            audio_seg = AudioSegment.from_file(io.BytesIO(audio['bytes']))
+            samples = np.array(audio_seg.get_array_of_samples()).astype(np.float32)
+            y = samples / (2**15)
+            sr = audio_seg.frame_rate
+            
+            pitches, magnitudes = librosa.piptrack(y=y, sr=sr, fmin=75, fmax=1000)
+            pitch_mostrar = float(pitches.flatten()[magnitudes.argmax()])
+        except:
+            pass
+
+    # --- EL GRÁFICO CIRCULAR ---
+    # Ajustamos el rango para que la aguja siempre se vea
+    rango_min = min(hz_obj, pitch_mostrar) - 40 if pitch_mostrar > 0 else hz_obj - 40
+    rango_max = max(hz_obj, pitch_mostrar) + 40 if pitch_mostrar > 0 else hz_obj + 40
+
     fig = go.Figure(go.Indicator(
-        mode = "gauge+number",
-        value = float(actual),
-        domain = {'x': [0, 1], 'y': [0, 1]},
+        mode = "gauge+number+delta",
+        value = pitch_mostrar,
+        title = {'text': f"Nota: {nota_sel}"},
+        delta = {'reference': hz_obj},
         gauge = {
-            'axis': {'range': [hz_obj - 50, hz_obj + 50]},
-            'steps': [{'range': [hz_obj-2, hz_obj+2], 'color': "green"}],
+            'axis': {'range': [rango_min, rango_max]},
+            'bar': {'color': "black"},
+            'steps': [
+                {'range': [hz_obj-2, hz_obj+2], 'color': "lightgreen"}
+            ],
             'threshold': {'line': {'color': "red", 'width': 4}, 'value': hz_obj}
         }
     ))
     
-    # Renderizar el gráfico
     st.plotly_chart(fig, use_container_width=True)
-    
-    # 4. Refresco automático para el movimiento de la aguja
-    if webrtc_ctx.state.playing:
-        st.write("🎤 Escuchando en vivo...")
-        st.rerun()
+
+    if pitch_mostrar > 0:
+        diff = pitch_mostrar - hz_obj
+        if abs(diff) < 2:
+            st.success("🎯 ¡AFINADO!")
+        elif diff < 0:
+            st.info("🔼 Sube un poco el tono")
+        else:
+            st.warning("🔽 Baja un poco el tono")
         
 # --- PESTAÑA 2: SEPARADOR ---
 with tabs[1]:
