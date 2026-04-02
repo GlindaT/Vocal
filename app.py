@@ -89,8 +89,9 @@ with tabs[0]:
                     st.warning("🔽 Sube un poco el tono (más agudo)")
                 else:
                     st.warning("🔼 Baja un poco el tono (más grave)")
-       except Exception as e:
-            st.error(f"Error técnico: {e}")             
+                    except Exception as e:
+            st.error(f"Error técnico: {e}") 
+
 # --- PESTAÑA 2: SEPARADOR ---
 with tabs[1]:
     st.header("Separador de Voz (AI)")
