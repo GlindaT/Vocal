@@ -3,6 +3,7 @@ from streamlit_mic_recorder import mic_recorder
 import librosa
 import numpy as np
 import io
+from pydub import AudioSegment
 
 # Configuración de la página
 st.set_page_config(page_title="Karaoke AI", layout="wide")
@@ -19,25 +20,32 @@ with tabs[0]:
     audio = mic_recorder(start_prompt="Grabar nota", stop_prompt="Detener", key='afinador')
     
     if audio:
-        # 1. Convertir bytes a formato que Librosa entienda
-        audio_bytes = io.BytesIO(audio['bytes'])
-        y, sr = librosa.load(audio_bytes, sr=None) # sr=None mantiene el sample rate original
-        
-        # 2. Algoritmo de detección de frecuencia (Pitch)
-        pitches, magnitudes = librosa.piptrack(y=y, sr=sr)
-        
-        # Extraer la frecuencia más prominente
-        index = magnitudes.argmax()
-        pitch_detectado = pitches.flatten()[index]
-        
-        if pitch_detectado > 0:
-            st.metric("Frecuencia Detectada", f"{pitch_detectado:.2f} Hz")
-            # Aquí podrías comparar pitch_detectado con la nota_ref
-            st.success(f"¡Nota capturada! Frecuencia: {int(pitch_detectado)} Hz")
-        else:
-            st.warning("No se detectó un sonido claro. Prueba grabar más cerca.")
+        try:
+            # 1. Convertir los bytes del micro a un array que Librosa entienda usando Pydub
+            audio_seg = AudioSegment.from_file(io.BytesIO(audio['bytes']))
             
-        st.audio(audio['bytes'])
+            # Convertir a mono y a los floats que espera librosa
+            samples = np.array(audio_seg.get_array_of_samples()).astype(np.float32)
+            sr = audio_seg.frame_rate
+            
+            # Normalizar el audio (importante para que no de 0)
+            y = samples / (2**15) 
+
+            # 2. Detección de frecuencia
+            pitches, magnitudes = librosa.piptrack(y=y, sr=sr)
+            index = magnitudes.argmax()
+            pitch_detectado = pitches.flatten()[index]
+            
+            if pitch_detectado > 40: # Filtramos ruidos muy bajos
+                st.metric("Frecuencia Detectada", f"{pitch_detectado:.2f} Hz")
+                st.success(f"¡Nota capturada!")
+            else:
+                st.warning("Sonido demasiado débil, intenta de nuevo.")
+                
+            st.audio(audio['bytes'])
+            
+        except Exception as e:
+            st.error(f"Error procesando audio: {e}")
 # --- PESTAÑA 2: SEPARADOR ---
 with tabs[1]:
     st.header("Separador de Voz (AI)")
