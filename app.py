@@ -48,7 +48,7 @@ with tabs[0]:
     ctx = webrtc_streamer(
         key="afinador-realtime",
         mode=WebRtcMode.SENDRECV,
-        rtc_configuration={"iceServers": [{"urls": ["stun:19302//google.com"]}]},
+        rtc_configuration={"iceServers": [{"urls": ["stun:19302google.com"]}]},
         media_stream_constraints={"video": False, "audio": True},
         audio_processor_factory=AfinadorProcessor,
         async_processing=True,
