@@ -52,25 +52,26 @@ with tabs[0]:
                 c2.metric("Objetivo", f"{hz_objetivo:.2f} Hz", f"{diferencia:.2f} Hz")
 
                 # --- 2. GRÁFICO CIRCULAR (Debajo de métricas) ---
+                # Definimos el rango para que la aguja siempre sea visible
+                min_rango = min(hz_objetivo, pitch_detectado) - 20
+                max_rango = max(hz_objetivo, pitch_detectado) + 20
+
                 fig = go.Figure(go.Indicator(
                     mode = "gauge+number",
-                    value = pitch_detectado,
+                    value = float(pitch_detectado), # Forzamos float aquí también
                     title = {'text': f"Afinación: {nota_ref}", 'font': {'size': 24}},
                     gauge = {
-                        'axis': {'range': [hz_objetivo - 30, hz_objetivo + 30], 'tickwidth': 1},
-                        'bar': {'color': "#1f77b4"}, # Color de la aguja
+                        # AHORA EL RANGO SE AJUSTA SOLO:
+                        'axis': {'range': [min_rango, max_rango], 'tickwidth': 1},
+                        'bar': {'color': "black"}, 
                         'bgcolor': "white",
-                        'borderwidth': 2,
-                        'bordercolor': "#444",
                         'steps': [
-                            {'range': [hz_objetivo - 30, hz_objetivo - 2], 'color': '#ff4b4b'}, # Rojo (Bajo)
-                            {'range': [hz_objetivo - 2, hz_objetivo + 2], 'color': '#00cc96'}, # VERDE (Afinado)
-                            {'range': [hz_objetivo + 2, hz_objetivo + 30], 'color': '#ff4b4b'}  # Rojo (Alto)
+                            {'range': [hz_objetivo - 2, hz_objetivo + 2], 'color': '#00cc96'}, # Zona Verde
                         ],
                         'threshold': {
-                            'line': {'color': "black", 'width': 4},
+                            'line': {'color': "red", 'width': 4},
                             'thickness': 0.75,
-                            'value': hz_objetivo
+                            'value': hz_objetivo # Raya roja en la nota meta
                         }
                     }
                 ))
