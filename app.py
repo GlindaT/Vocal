@@ -75,7 +75,17 @@ with tabs[0]:
         key="afinador-live",
         mode=WebRtcMode.SENDRECV,
         audio_receiver_size=256,
-        rtc_configuration={"iceServers": [{"urls": ["stun:://google.com"]}]},
+        webrtc_ctx = webrtc_streamer(
+        key="afinador-live",
+        mode=WebRtcMode.SENDRECV,
+        audio_receiver_size=256,
+        # Eliminamos la línea compleja de iceServers para usar la de defecto
+        rtc_configuration={ 
+            "iceServers": [{"urls": ["stun:://google.com"]}] 
+        },
+        media_stream_constraints={"video": False, "audio": True},
+        async_processing=True,
+    )
         media_stream_constraints={"video": False, "audio": True},
         async_processing=True,
     )
