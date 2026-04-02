@@ -40,10 +40,7 @@ ctx = webrtc_streamer(
     key="afinador-final-v1",
     mode=WebRtcMode.SENDRECV,
     rtc_configuration={
-        "iceServers": [
-            {"urls": ["stun:://google.com"]},
-            {"urls": ["stun:://google.com"]}
-        ]
+        "iceServers": [{"urls": ["stun:://google.com"]}]
     },
     media_stream_constraints={"video": False, "audio": True},
     audio_processor_factory=AfinadorProcessor,
