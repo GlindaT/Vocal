@@ -1,90 +1,73 @@
 import streamlit as st
-from streamlit_mic_recorder import mic_recorder
-import io
-import librosa
+from streamlit_webrtc import webrtc_streamer, WebRtcMode, AudioProcessorBase
+import av
 import numpy as np
+import librosa
 import plotly.graph_objects as go
-from pydub import AudioSegment
 
-# 1. Configuración inicial
-st.set_page_config(page_title="Karaoke AI", layout="wide")
+st.set_page_config(page_title="Afinador Pro En Vivo")
 
-# 2. Título y Navegación
-st.title("🎤 Mi App de Karaoke Pro")
-tabs = st.tabs(["🎯 Afinador", "✂️ Separador", "🎼 Preparación", "🎙️ Estudio", "⚙️ Config"])
+# --- LÓGICA DE PROCESAMIENTO ---
+if "pitch" not in st.session_state:
+    st.session_state["pitch"] = 0
 
-# --- PESTAÑA 1: AFINADOR ---
-with tabs[0]:
-    st.header("🎯 Afinador de Precisión")
-    
-    # Diccionario de notas estándar
-    frecuencias = {
-        "C (Do)": 261.63, "D (Re)": 293.66, "E (Mi)": 329.63, 
-        "F (Fa)": 349.23, "G (Sol)": 392.00, "A (La)": 440.00, "B (Si)": 493.88
+class AfinadorVivo(AudioProcessorBase):
+    def recv_audio(self, frame: av.AudioFrame) -> av.AudioFrame:
+        raw_samples = frame.to_ndarray()
+        # Convertir a mono y normalizar
+        y = raw_samples.astype(np.float32).flatten() / 32768.0
+        sr = frame.sample_rate
+        
+        # Detección rápida de pitch
+        pitches, magnitudes = librosa.piptrack(y=y, sr=sr, fmin=75, fmax=1000)
+        if magnitudes.max() > 0.2: # Umbral de ruido
+            pitch = pitches.flatten()[magnitudes.argmax()]
+            if pitch > 0:
+                st.session_state["pitch"] = float(pitch)
+        return frame
+
+# --- INTERFAZ ---
+st.title("🎤 Afinador en Tiempo Real")
+frecuencias = {"C": 261.63, "D": 293.66, "E": 329.63, "F": 349.23, "G": 392.0, "A": 440.0, "B": 493.88}
+nota_obj = st.selectbox("Nota Objetivo", list(frecuencias.keys()))
+hz_obj = frecuencias[nota_obj]
+
+# El componente que conecta el micro en vivo
+ctx = webrtc_streamer(
+    key="afinador-realtime",
+    mode=WebRtcMode.SENDRECV,
+    audio_receiver_size=512,
+    media_stream_constraints={"video": False, "audio": True},
+    processor_factory=AfinadorVivo,
+    async_processing=True,
+)
+
+# --- DIBUJO DE LA AGUJA ---
+pitch_actual = st.session_state["pitch"]
+
+fig = go.Figure(go.Indicator(
+    mode = "gauge+number",
+    value = pitch_actual,
+    title = {'text': f"Buscando {nota_obj} ({hz_obj} Hz)"},
+    gauge = {
+        'axis': {'range': [hz_obj - 50, hz_obj + 50]},
+        'bar': {'color': "black"},
+        'steps': [
+            {'range': [hz_obj-2, hz_obj+2], 'color': "green"} # Zona de afinado
+        ],
+        'threshold': {'line': {'color': "red", 'width': 5}, 'value': hz_obj}
     }
-    
-    col_sel, col_mic = st.columns([1, 1])
-    with col_sel:
-        nota_sel = st.selectbox("Nota Objetivo", list(frecuencias.keys()), key="nota_afin")
-        hz_obj = frecuencias[nota_sel]
-    
-    with col_mic:
-        st.write("Graba una nota para analizar:")
-        audio = mic_recorder(start_prompt="🎤 Empezar a Grabar", stop_prompt="⏹️ Detener y Analizar", key='afinador_v3')
+))
 
-    pitch_detectado = 0.0
-    
-    # Procesamiento si hay audio grabado
-    if audio:
-        try:
-            # Convertir bytes a audio procesable
-            audio_bytes = io.BytesIO(audio['bytes'])
-            audio_seg = AudioSegment.from_file(audio_bytes)
-            
-            # Convertir a array de numpy para librosa
-            samples = np.array(audio_seg.get_array_of_samples()).astype(np.float32)
-            y = samples / (2**15) # Normalizar
-            sr = audio_seg.frame_rate
-            
-            # Detectar la frecuencia principal
-            pitches, magnitudes = librosa.piptrack(y=y, sr=sr, fmin=75, fmax=1000)
-            if magnitudes.max() > 0:
-                pitch_detectado = float(pitches.flatten()[magnitudes.argmax()])
-        except Exception as e:
-            st.error(f"Error al procesar el audio: {e}")
-
-    # --- GRÁFICO DE AGUJA ---
-    # Rango dinámico para que la aguja siempre sea visible
-    r_min = min(hz_obj, pitch_detectado) - 40 if pitch_detectado > 0 else hz_obj - 40
-    r_max = max(hz_obj, pitch_detectado) + 40 if pitch_detectado > 0 else hz_obj + 40
-
-    fig = go.Figure(go.Indicator(
-        mode = "gauge+number+delta",
-        value = pitch_detectado,
-        title = {'text': f"Afinando: {nota_sel}"},
-        delta = {'reference': hz_obj},
-        gauge = {
-            'axis': {'range': [r_min, r_max]},
-            'bar': {'color': "black"},
-            'steps': [
-                {'range': [hz_obj - 2, hz_obj + 2], 'color': "#00cc96"} # Franja verde de afinado
-            ],
-            'threshold': {'line': {'color': "red", 'width': 4}, 'value': hz_obj}
-        }
-    ))
-    
+# Contenedor para que el gráfico no parpadee al refrescar
+placeholder = st.empty()
+with placeholder:
     st.plotly_chart(fig, use_container_width=True)
 
-    # Mensajes de guía
-    if pitch_detectado > 0:
-        diff = pitch_detectado - hz_obj
-        if abs(diff) < 2:
-            st.success("🎯 ¡AFINADO! Lo lograste.")
-            st.balloons()
-        elif diff < 0:
-            st.info("🔼 Sube un poco el tono (más agudo)")
-        else:
-            st.warning("🔽 Baja un poco el tono (más grave)")
+# El motor del movimiento: Si el micro está encendido, forzamos el refresco
+if ctx.state.playing:
+    st.write("🟢 Analizando audio en vivo...")
+    st.rerun() # ESTO HACE QUE LA AGUJA SE MUEVA EN VIVO
 
 # --- PESTAÑA 2: SEPARADOR ---
 with tabs[1]:
