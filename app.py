@@ -64,9 +64,9 @@ placeholder = st.empty()
 with placeholder:
     st.plotly_chart(fig, use_container_width=True)
 
-# El motor del movimiento: Si el micro está encendido, forzamos el refresco
+# El truco final: Si el micro está encendido, forzamos el refresco constante
 if ctx.state.playing:
-    st.write("🟢 Analizando audio en vivo...")
+    st.write("🎤 Analizando audio en vivo...")
     st.rerun() # ESTO HACE QUE LA AGUJA SE MUEVA EN VIVO
 
 # --- PESTAÑA 2: SEPARADOR ---
