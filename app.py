@@ -51,7 +51,6 @@ webrtc_ctx = webrtc_streamer(
         media_stream_constraints={"video": False, "audio": True},
         async_processing=True,
     )
-)
 
 # --- EL GRÁFICO ---
 actual = st.session_state["pitch_vivo"]
