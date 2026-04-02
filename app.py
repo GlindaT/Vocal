@@ -88,23 +88,33 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 # -----------------------------
 # PESTAÑA 1: AFINADOR (CORREGIDA)
 # -----------------------------
+from audio_recorder_streamlit import audio_recorder
+from tuner_ui import render_tuner_gauge
+
 with tab1:
     st.header("Afinador")
-    st.write("Simulación del afinador - El slider representa la frecuencia detectada:")
+    st.write("Graba un pequeño clip de audio para verificar tu afinación.")
     
-    # Simulación: En el futuro esto vendrá del micrófono real
-    frecuencia_simulada = st.slider("Frecuencia detectada (Hz)", 80, 1000, 440)
+    # Botón de grabación integrado en el afinador
+    audio_bytes = audio_recorder(
+        text="Haz clic para grabar tu nota",
+        recording_color="#e74c3c",
+        neutral_color="#6aa3b4",
+        icon_name="microphone",
+        icon_size="2x",
+    )
     
-    # Llamamos a la función del archivo tuner_ui.py
-    render_tuner_gauge(frecuencia_simulada)
-    
-    # Feedback visual
-    if 435 <= frecuencia_simulada <= 445:
-        st.success("🎵 ¡Perfecto! Estás en La (A4) - 440Hz")
-    elif frecuencia_simulada < 435:
-        st.warning("📉 Un poco grave (bajo) - sube el tono")
-    else:
-        st.warning("📈 Un poco agudo (alto) - baja el tono")
+    if audio_bytes:
+        st.audio(audio_bytes, format="audio/wav")
+        st.info("Procesando audio... (Simulación: Nota detectada)")
+        
+        # Simulación de detección: 
+        # Aquí más adelante usaremos librosa para analizar la frecuencia de 'audio_bytes'
+        frecuencia_detectada = 440 
+        render_tuner_gauge(frecuencia_detectada)
+        
+        if 435 <= frecuencia_detectada <= 445:
+            st.success("¡Perfecto! Estás en el tono correcto.")
 
 # -----------------------------
 # PESTAÑA 2: SEPARADOR
