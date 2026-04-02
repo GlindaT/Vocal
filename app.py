@@ -38,12 +38,19 @@ nota_obj = st.selectbox("Nota Objetivo", list(frecuencias.keys()))
 hz_obj = frecuencias[nota_obj]
 
 # EL COMPONENTE DE MICRO (Sin la línea de STUN para evitar errores)
-ctx = webrtc_streamer(
-    key="afinador-definitivo",
-    mode=WebRtcMode.SENDRECV,
-    media_stream_constraints={"video": False, "audio": True},
-    audio_processor_factory=AfinadorProcessor,
-    async_processing=True,
+webrtc_ctx = webrtc_streamer(
+        key="afinador-final-pro",
+        mode=WebRtcMode.SENDRECV,
+        rtc_configuration={
+            "iceServers": [
+                {"urls": ["stun:stun.l.google.com:19302"]},
+                {"urls": ["stun:stun1.l.google.com:19302"]},
+                {"urls": ["stun:stun2.l.google.com:19302"]}
+            ]
+        },
+        media_stream_constraints={"video": False, "audio": True},
+        async_processing=True,
+    )
 )
 
 # --- EL GRÁFICO ---
