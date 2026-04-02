@@ -91,30 +91,20 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 from audio_recorder_streamlit import audio_recorder
 from tuner_ui import render_tuner_gauge
 
+from audio_analyzer import get_pitch_from_bytes # <--- IMPORTA ESTO
+
 with tab1:
     st.header("Afinador")
-    st.write("Graba un pequeño clip de audio para verificar tu afinación.")
-    
-    # Botón de grabación integrado en el afinador
-    audio_bytes = audio_recorder(
-        text="Haz clic para grabar tu nota",
-        recording_color="#e74c3c",
-        neutral_color="#6aa3b4",
-        icon_name="microphone",
-        icon_size="2x",
-    )
+    audio_bytes = audio_recorder(...) # (Tu código previo)
     
     if audio_bytes:
         st.audio(audio_bytes, format="audio/wav")
-        st.info("Procesando audio... (Simulación: Nota detectada)")
-        
-        # Simulación de detección: 
-        # Aquí más adelante usaremos librosa para analizar la frecuencia de 'audio_bytes'
-        frecuencia_detectada = 440 
-        render_tuner_gauge(frecuencia_detectada)
-        
-        if 435 <= frecuencia_detectada <= 445:
-            st.success("¡Perfecto! Estás en el tono correcto.")
+        with st.spinner("Analizando tu tono..."):
+            frecuencia = get_pitch_from_bytes(audio_bytes)
+            st.write(f"Frecuencia detectada: {frecuencia:.2f} Hz")
+            
+            # Dibujamos en el gauge real
+            render_tuner_gauge(frecuencia)
 
 # -----------------------------
 # PESTAÑA 2: SEPARADOR
