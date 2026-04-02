@@ -1,6 +1,7 @@
 streamlit
-streamlit-mic-recorder
+streamlit-webrtc
+opensndfile
 librosa
 numpy
 plotly
-pydub
+av==10.0.0
