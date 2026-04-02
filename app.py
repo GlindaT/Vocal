@@ -57,45 +57,40 @@ class AfinadorProcessor(AudioProcessorBase):
             
         return frame
 
-# --- EN LA PESTAÑA 1 ---
+# --- DENTRO DE TU PESTAÑA 1 ---
 with tabs[0]:
-    st.header("🎯 Afinador en Vivo")
+    st.header("🎯 Afinador en Tiempo Real")
     
-    # Inicializar el estado si no existe
-    if "pitch_vivo" not in st.session_state:
-        st.session_state["pitch_vivo"] = 0.0
-
-    # Selector de nota objetivo
-    frecuencias = {"C": 261.63, "D": 293.66, "E": 329.63, "F": 349.23, "G": 392.0, "A": 440.0, "B": 493.88}
+    # 1. Diccionario de notas (Asegúrate de que cierre bien con })
+    frecuencias = {
+        "C (Do)": 261.63, 
+        "D (Re)": 293.66, 
+        "E (Mi)": 329.63, 
+        "F (Fa)": 349.23, 
+        "G (Sol)": 392.00, 
+        "A (La)": 440.00, 
+        "B (Si)": 493.88
+    }
+    
     nota_sel = st.selectbox("Nota Objetivo", list(frecuencias.keys()))
     hz_obj = frecuencias[nota_sel]
 
-    # COMPONENTE DE MICRO EN VIVO
+    # 2. El Streamer de WebRTC (Revisa que cada argumento termine en coma ,)
     webrtc_ctx = webrtc_streamer(
         key="afinador-live",
         mode=WebRtcMode.SENDRECV,
         audio_receiver_size=256,
-        webrtc_ctx = webrtc_streamer(
-        key="afinador-live",
-        mode=WebRtcMode.SENDRECV,
-        audio_receiver_size=256,
-        # Eliminamos la línea compleja de iceServers para usar la de defecto
-        rtc_configuration={ 
-            "iceServers": [{"urls": ["stun:://google.com"]}] 
-        },
-        media_stream_constraints={"video": False, "audio": True},
-        async_processing=True,
-    )
         media_stream_constraints={"video": False, "audio": True},
         async_processing=True,
     )
 
-    # Mostrar la aguja con el valor en vivo
-    actual = st.session_state["pitch_vivo"]
+    # 3. Lógica del gráfico (Solo si el valor existe)
+    actual = st.session_state.get("pitch_vivo", 0.0)
     
     fig = go.Figure(go.Indicator(
         mode = "gauge+number",
-        value = actual,
+        value = float(actual),
+        domain = {'x': [0, 1], 'y': [0, 1]},
         gauge = {
             'axis': {'range': [hz_obj - 50, hz_obj + 50]},
             'steps': [{'range': [hz_obj-2, hz_obj+2], 'color': "green"}],
@@ -103,12 +98,14 @@ with tabs[0]:
         }
     ))
     
-    # El truco: Mostrar el gráfico y forzar el refresco
+    # Renderizar el gráfico
     st.plotly_chart(fig, use_container_width=True)
     
+    # 4. Refresco automático para el movimiento de la aguja
     if webrtc_ctx.state.playing:
-        st.write("🎤 Escuchando...")
-        st.rerun() # Esto hace que la aguja se mueva constantemente
+        st.write("🎤 Escuchando en vivo...")
+        st.rerun()
+        
 # --- PESTAÑA 2: SEPARADOR ---
 with tabs[1]:
     st.header("Separador de Voz (AI)")
