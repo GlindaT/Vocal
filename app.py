@@ -1,10 +1,29 @@
 import streamlit as st
-from streamlit_mic_recorder import mic_recorder
-import librosa
+from streamlit_webrtc import webrtc_streamer, WebRtcMode, AudioProcessorBase
+import av
 import numpy as np
-import io
-from pydub import AudioSegment
+import librosa
 import plotly.graph_objects as go
+
+# --- PROCESADOR DE AUDIO EN VIVO ---
+class AudioProcessor(AudioProcessorBase):
+    def __init__(self):
+        self.pitch = 0
+
+    def recv_audio(self, frame: av.AudioFrame) -> av.AudioFrame:
+        # Convertir audio a numpy
+        raw_samples = frame.to_ndarray()
+        y = raw_samples.astype(np.float32).flatten() / 32768.0
+        sr = frame.sample_rate
+        
+        # Detectar frecuencia rápido
+        pitches, magnitudes = librosa.piptrack(y=y, sr=sr, fmin=75, fmax=1000)
+        if magnitudes.max() > 0.1: # Si hay suficiente volumen
+            pitch = pitches.flatten()[magnitudes.argmax()]
+            if pitch > 0:
+                st.session_state["pitch_vivo"] = float(pitch)
+        
+        return frame
 
 # Configuración de la página
 st.set_page_config(page_title="Karaoke AI", layout="wide")
@@ -38,34 +57,48 @@ class AfinadorProcessor(AudioProcessorBase):
             
         return frame
 
-# --- EN TU PESTAÑA 1 ---
+# --- EN LA PESTAÑA 1 ---
 with tabs[0]:
-    st.header("🎯 Afinador en Tiempo Real")
+    st.header("🎯 Afinador en Vivo")
     
-    # Iniciamos el streaming
-    ctx = webrtc_streamer(
+    # Inicializar el estado si no existe
+    if "pitch_vivo" not in st.session_state:
+        st.session_state["pitch_vivo"] = 0.0
+
+    # Selector de nota objetivo
+    frecuencias = {"C": 261.63, "D": 293.66, "E": 329.63, "F": 349.23, "G": 392.0, "A": 440.0, "B": 493.88}
+    nota_sel = st.selectbox("Nota Objetivo", list(frecuencias.keys()))
+    hz_obj = frecuencias[nota_sel]
+
+    # COMPONENTE DE MICRO EN VIVO
+    webrtc_ctx = webrtc_streamer(
         key="afinador-live",
-        audio_receiver_size=512,
+        mode=WebRtcMode.SENDRECV,
+        audio_receiver_size=256,
         rtc_configuration={"iceServers": [{"urls": ["stun:://google.com"]}]},
         media_stream_constraints={"video": False, "audio": True},
-        processor_factory=AfinadorProcessor,
+        async_processing=True,
     )
 
-    # Si el micro está encendido, mostramos la aguja
-    if ctx.audio_processor:
-        pitch_vivo = ctx.audio_processor.pitch_actual
-        
-        # Aquí va tu código del gráfico de Plotly (go.Figure) 
-        # usando 'value = pitch_vivo'
-        
-        # TRUCO: Para que Streamlit se refresque solo y la aguja se mueva:
-        st.empty() # Limpia el contenedor
-        # (Aquí pondrías el fig.show o st.plotly_chart)
-        st.plotly_chart(tu_figura_de_antes, use_container_width=True)
-        
-        # Forzar refresco cada 0.1 segundos
-        st.rerun() 
-
+    # Mostrar la aguja con el valor en vivo
+    actual = st.session_state["pitch_vivo"]
+    
+    fig = go.Figure(go.Indicator(
+        mode = "gauge+number",
+        value = actual,
+        gauge = {
+            'axis': {'range': [hz_obj - 50, hz_obj + 50]},
+            'steps': [{'range': [hz_obj-2, hz_obj+2], 'color': "green"}],
+            'threshold': {'line': {'color': "red", 'width': 4}, 'value': hz_obj}
+        }
+    ))
+    
+    # El truco: Mostrar el gráfico y forzar el refresco
+    st.plotly_chart(fig, use_container_width=True)
+    
+    if webrtc_ctx.state.playing:
+        st.write("🎤 Escuchando...")
+        st.rerun() # Esto hace que la aguja se mueva constantemente
 # --- PESTAÑA 2: SEPARADOR ---
 with tabs[1]:
     st.header("Separador de Voz (AI)")
