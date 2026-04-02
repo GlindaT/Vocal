@@ -3,5 +3,4 @@ streamlit-webrtc
 librosa
 numpy
 plotly
-pydub
 av
