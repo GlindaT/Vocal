@@ -1,3 +1,7 @@
 streamlit
 requests
 numpy
+streamlit
+google-cloud-storage
+google-cloud-speech
+google-api-python-client
