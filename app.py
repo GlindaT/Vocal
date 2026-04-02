@@ -4,6 +4,7 @@ import librosa
 import numpy as np
 import io
 from pydub import AudioSegment
+import plotly.graph_objects as go
 
 # Configuración de la página
 st.set_page_config(page_title="Karaoke AI", layout="wide")
@@ -45,34 +46,49 @@ with tabs[0]:
             if pitch_detectado > 40:
                 diferencia = pitch_detectado - hz_objetivo
                 
-                # --- MÉTRICAS ---
+                # --- 1. MÉTRICAS (Texto arriba) ---
                 c1, c2 = st.columns(2)
-                c1.metric("Detectado", f"{pitch_detectado:.2f} Hz")
+                c1.metric("Frecuencia Real", f"{pitch_detectado:.2f} Hz")
                 c2.metric("Objetivo", f"{hz_objetivo:.2f} Hz", f"{diferencia:.2f} Hz")
 
-                # --- GRÁFICO DE AGUJA (BARRA) ---
-                st.write("### Indicador de afinación")
-                # Rango de +- 20 Hz para que el movimiento sea sensible
-                rango = 20 
-                progreso = np.clip((diferencia + rango) / (rango * 2), 0.0, 1.0)
+                # --- 2. GRÁFICO CIRCULAR (Debajo de métricas) ---
+                fig = go.Figure(go.Indicator(
+                    mode = "gauge+number",
+                    value = pitch_detectado,
+                    title = {'text': f"Afinación: {nota_ref}", 'font': {'size': 24}},
+                    gauge = {
+                        'axis': {'range': [hz_objetivo - 30, hz_objetivo + 30], 'tickwidth': 1},
+                        'bar': {'color': "#1f77b4"}, # Color de la aguja
+                        'bgcolor': "white",
+                        'borderwidth': 2,
+                        'bordercolor': "#444",
+                        'steps': [
+                            {'range': [hz_objetivo - 30, hz_objetivo - 2], 'color': '#ff4b4b'}, # Rojo (Bajo)
+                            {'range': [hz_objetivo - 2, hz_objetivo + 2], 'color': '#00cc96'}, # VERDE (Afinado)
+                            {'range': [hz_objetivo + 2, hz_objetivo + 30], 'color': '#ff4b4b'}  # Rojo (Alto)
+                        ],
+                        'threshold': {
+                            'line': {'color': "black", 'width': 4},
+                            'thickness': 0.75,
+                            'value': hz_objetivo
+                        }
+                    }
+                ))
+
+                # Ajuste estético del gráfico
+                fig.update_layout(height=400, margin=dict(l=20, r=20, t=50, b=20))
                 
-                # Visualización visual
-                st.progress(float(progreso))
-                
-                if 0.48 <= progreso <= 0.52:
-                    st.success("🎯 ¡AFINADO! Perfecto.")
+                # Renderizar el medidor
+                st.plotly_chart(fig, use_container_width=True)
+
+                # --- 3. MENSAJE FINAL ---
+                if abs(diferencia) < 2:
+                    st.success("🎯 ¡ESTÁS AFINADO!")
                     st.balloons()
-                elif progreso < 0.48:
-                    st.warning("🔽 MÁS AGUDO (Tensa la cuerda/voz)")
+                elif diferencia < 0:
+                    st.warning("🔽 Sube un poco el tono (más agudo)")
                 else:
-                    st.warning("🔼 MÁS GRAVE (Afloja la cuerda/voz)")
-            else:
-                st.error("No se detectó sonido. Intenta de nuevo.")
-                
-            st.audio(audio['bytes'])
-            
-        except Exception as e:
-            st.error(f"Error técnico: {e}")
+                    st.warning("🔼 Baja un poco el tono (más grave)")
 # --- PESTAÑA 2: SEPARADOR ---
 with tabs[1]:
     st.header("Separador de Voz (AI)")
