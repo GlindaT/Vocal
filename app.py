@@ -5,70 +5,75 @@ import numpy as np
 import librosa
 import plotly.graph_objects as go
 
-st.set_page_config(page_title="Afinador Pro En Vivo")
+# 1. Configuración de página
+st.set_page_config(page_title="Afinador en Vivo")
 
-# --- LÓGICA DE PROCESAMIENTO ---
-if "pitch" not in st.session_state:
-    st.session_state["pitch"] = 0
+# 2. Título
+st.title("🎤 Afinador de Voz en Tiempo Real")
 
-class AfinadorVivo(AudioProcessorBase):
+# --- PROCESADOR DE AUDIO ---
+class AudioProcessor(AudioProcessorBase):
+    def __init__(self):
+        self.pitch = 0.0
+
     def recv_audio(self, frame: av.AudioFrame) -> av.AudioFrame:
+        # Convertir audio a numpy
         raw_samples = frame.to_ndarray()
-        # Convertir a mono y normalizar
         y = raw_samples.astype(np.float32).flatten() / 32768.0
         sr = frame.sample_rate
         
-        # Detección rápida de pitch
+        # Detección rápida de frecuencia
         pitches, magnitudes = librosa.piptrack(y=y, sr=sr, fmin=75, fmax=1000)
-        if magnitudes.max() > 0.2: # Umbral de ruido
+        if magnitudes.max() > 0.1: # Umbral de ruido
             pitch = pitches.flatten()[magnitudes.argmax()]
             if pitch > 0:
-                st.session_state["pitch"] = float(pitch)
+                # Guardamos en session_state para que la interfaz lo lea
+                st.session_state["pitch_actual"] = float(pitch)
+        
         return frame
 
-# --- INTERFAZ ---
-st.title("🎤 Afinador en Tiempo Real")
-frecuencias = {"C": 261.63, "D": 293.66, "E": 329.63, "F": 349.23, "G": 392.0, "A": 440.0, "B": 493.88}
-nota_obj = st.selectbox("Nota Objetivo", list(frecuencias.keys()))
-hz_obj = frecuencias[nota_obj]
+# 3. Inicializar el estado si no existe
+if "pitch_actual" not in st.session_state:
+    st.session_state["pitch_actual"] = 0.0
 
-# El componente que conecta el micro en vivo
+# 4. Interfaz de usuario
+frecuencias = {"C (Do)": 261.63, "D (Re)": 293.66, "E (Mi)": 329.63, "F (Fa)": 349.23, "G (Sol)": 392.00, "A (La)": 440.00, "B (Si)": 493.88}
+nota_sel = st.selectbox("Elige tu nota objetivo", list(frecuencias.keys()))
+hz_obj = frecuencias[nota_sel]
+
+# --- EL COMPONENTE MÁGICO ---
 ctx = webrtc_streamer(
-    key="afinador-realtime",
+    key="afinador-live",
     mode=WebRtcMode.SENDRECV,
-    audio_receiver_size=512,
+    audio_receiver_size=256,
     media_stream_constraints={"video": False, "audio": True},
-    processor_factory=AfinadorVivo,
+    processor_factory=AudioProcessor, # Cambiado aquí para mayor estabilidad
     async_processing=True,
 )
 
-# --- DIBUJO DE LA AGUJA ---
-pitch_actual = st.session_state["pitch"]
+# 5. Dibujar la aguja
+pitch_vivo = st.session_state["pitch_actual"]
 
 fig = go.Figure(go.Indicator(
     mode = "gauge+number",
-    value = pitch_actual,
-    title = {'text': f"Buscando {nota_obj} ({hz_obj} Hz)"},
+    value = pitch_vivo,
+    title = {'text': f"Afinando {nota_sel}"},
     gauge = {
         'axis': {'range': [hz_obj - 50, hz_obj + 50]},
         'bar': {'color': "black"},
-        'steps': [
-            {'range': [hz_obj-2, hz_obj+2], 'color': "green"} # Zona de afinado
-        ],
-        'threshold': {'line': {'color': "red", 'width': 5}, 'value': hz_obj}
+        'steps': [{'range': [hz_obj-2, hz_obj+2], 'color': "green"}],
+        'threshold': {'line': {'color': "red", 'width': 4}, 'value': hz_obj}
     }
 ))
 
-# Contenedor para que el gráfico no parpadee al refrescar
+# Contenedor dinámico
 placeholder = st.empty()
 with placeholder:
     st.plotly_chart(fig, use_container_width=True)
 
-# El truco final: Si el micro está encendido, forzamos el refresco constante
+# EL MOTOR DEL MOVIMIENTO: Si el micro está encendido, forzamos el refresco
 if ctx.state.playing:
-    st.write("🎤 Analizando audio en vivo...")
     st.rerun() # ESTO HACE QUE LA AGUJA SE MUEVA EN VIVO
-
 # --- PESTAÑA 2: SEPARADOR ---
 with tabs[1]:
     st.header("✂️ Separador de Voz (AI)")
