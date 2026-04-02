@@ -14,84 +14,57 @@ st.title("🎤 Mi App de Karaoke Pro")
 tabs = st.tabs(["🎯 Afinador", "✂️ Separador", "🎼 Preparación", "🎙️ Estudio", "⚙️ Config"])
 
 # --- PESTAÑA 1: AFINADOR (REEMPLAZA TODO EL CONTENIDO DE ESTA PESTAÑA) ---
+from streamlit_webrtc import webrtc_streamer, AudioProcessorBase
+import av # Asegúrate de añadir 'PyAV' al requirements.txt si da error
+
+class AfinadorProcessor(AudioProcessorBase):
+    def __init__(self):
+        self.pitch_actual = 0
+
+    def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
+        # 1. Convertir el frame de audio a array de numpy
+        raw_samples = frame.to_ndarray()
+        # Convertir a flotantes y promediar canales si es estéreo
+        y = raw_samples.astype(np.float32).flatten() / 32768.0
+        sr = frame.sample_rate
+
+        # 2. Detectar frecuencia (usamos algo más rápido que piptrack para tiempo real)
+        pitches, magnitudes = librosa.piptrack(y=y, sr=sr, fmin=75, fmax=1000)
+        index = magnitudes.argmax()
+        pitch = pitches.flatten()[index]
+        
+        if pitch > 0:
+            self.pitch_actual = pitch
+            
+        return frame
+
+# --- EN TU PESTAÑA 1 ---
 with tabs[0]:
-    st.header("🎯 Afinador de Precisión")
+    st.header("🎯 Afinador en Tiempo Real")
     
-    # 1. Diccionario de frecuencias
-    frecuencias_notas = {
-        "C (Do)": 261.63, "D (Re)": 293.66, "E (Mi)": 329.63, 
-        "F (Fa)": 349.23, "G (Sol)": 392.00, "A (La)": 440.00, "B (Si)": 493.88
-    }
-    
-    col_sel, col_mic = st.columns([1, 2])
-    with col_sel:
-        nota_ref = st.selectbox("Nota objetivo", list(frecuencias_notas.keys()))
-        hz_objetivo = frecuencias_notas[nota_ref]
-    
-    with col_mic:
-        audio = mic_recorder(start_prompt="🎤 Grabar nota", stop_prompt="🛑 Detener", key='afinador')
+    # Iniciamos el streaming
+    ctx = webrtc_streamer(
+        key="afinador-live",
+        audio_receiver_size=512,
+        rtc_configuration={"iceServers": [{"urls": ["stun:://google.com"]}]},
+        media_stream_constraints={"video": False, "audio": True},
+        processor_factory=AfinadorProcessor,
+    )
 
-    if audio:
-        try:
-            # Procesamiento de audio
-            audio_seg = AudioSegment.from_file(io.BytesIO(audio['bytes']))
-            samples = np.array(audio_seg.get_array_of_samples()).astype(np.float32)
-            sr = audio_seg.frame_rate
-            y = samples / (2**15) 
-
-            pitches, magnitudes = librosa.piptrack(y=y, sr=sr)
-            index = magnitudes.argmax()
-            pitch_detectado = pitches.flatten()[index]
-
-            if pitch_detectado > 40:
-                diferencia = pitch_detectado - hz_objetivo
-                
-                # --- 1. MÉTRICAS (Texto arriba) ---
-                c1, c2 = st.columns(2)
-                c1.metric("Frecuencia Real", f"{pitch_detectado:.2f} Hz")
-                c2.metric("Objetivo", f"{hz_objetivo:.2f} Hz", f"{diferencia:.2f} Hz")
-
-                # --- 2. GRÁFICO CIRCULAR (Debajo de métricas) ---
-                # Definimos el rango para que la aguja siempre sea visible
-                min_rango = min(hz_objetivo, pitch_detectado) - 20
-                max_rango = max(hz_objetivo, pitch_detectado) + 20
-
-                fig = go.Figure(go.Indicator(
-                    mode = "gauge+number",
-                    value = float(pitch_detectado), # Forzamos float aquí también
-                    title = {'text': f"Afinación: {nota_ref}", 'font': {'size': 24}},
-                    gauge = {
-                        # AHORA EL RANGO SE AJUSTA SOLO:
-                        'axis': {'range': [min_rango, max_rango], 'tickwidth': 1},
-                        'bar': {'color': "black"}, 
-                        'bgcolor': "white",
-                        'steps': [
-                            {'range': [hz_objetivo - 2, hz_objetivo + 2], 'color': '#00cc96'}, # Zona Verde
-                        ],
-                        'threshold': {
-                            'line': {'color': "red", 'width': 4},
-                            'thickness': 0.75,
-                            'value': hz_objetivo # Raya roja en la nota meta
-                        }
-                    }
-                ))
-
-                # Ajuste estético del gráfico
-                fig.update_layout(height=400, margin=dict(l=20, r=20, t=50, b=20))
-                
-                # Renderizar el medidor
-                st.plotly_chart(fig, use_container_width=True)
-
-                # --- 3. MENSAJE FINAL ---
-                if abs(diferencia) < 2:
-                    st.success("🎯 ¡ESTÁS AFINADO!")
-                    st.balloons()
-                elif diferencia < 0:
-                    st.warning("🔽 Sube un poco el tono (más agudo)")
-                else:
-                    st.warning("🔼 Baja un poco el tono (más grave)")
-        except Exception as e:
-                st.error(f"Error técnico: {e}") 
+    # Si el micro está encendido, mostramos la aguja
+    if ctx.audio_processor:
+        pitch_vivo = ctx.audio_processor.pitch_actual
+        
+        # Aquí va tu código del gráfico de Plotly (go.Figure) 
+        # usando 'value = pitch_vivo'
+        
+        # TRUCO: Para que Streamlit se refresque solo y la aguja se mueva:
+        st.empty() # Limpia el contenedor
+        # (Aquí pondrías el fig.show o st.plotly_chart)
+        st.plotly_chart(tu_figura_de_antes, use_container_width=True)
+        
+        # Forzar refresco cada 0.1 segundos
+        st.rerun() 
 
 # --- PESTAÑA 2: SEPARADOR ---
 with tabs[1]:
