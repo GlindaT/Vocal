@@ -13,39 +13,52 @@ st.title("🎤 Mi App de Karaoke Pro")
 tabs = st.tabs(["🎯 Afinador", "✂️ Separador", "🎼 Preparación", "🎙️ Estudio", "⚙️ Config"])
 
 # --- PESTAÑA 1: AFINADOR ---
+frecuencias_notas = {
+    "C": 261.63, "D": 293.66, "E": 329.63, "F": 349.23, 
+    "G": 392.00, "A": 440.00, "B": 493.88
+}
+
 with tabs[0]:
-    st.header("Afinador")
-    nota_ref = st.selectbox("Nota objetivo", ["C", "D", "E", "F", "G", "A", "B"])
-    
+    st.header("🎯 Afinador de Precisión")
+    nota_ref = st.selectbox("Nota objetivo", list(frecuencias_notas.keys()))
+    hz_objetivo = frecuencias_notas[nota_ref]
+
     audio = mic_recorder(start_prompt="Grabar nota", stop_prompt="Detener", key='afinador')
-    
+
     if audio:
         try:
-            # 1. Convertir los bytes del micro a un array que Librosa entienda usando Pydub
             audio_seg = AudioSegment.from_file(io.BytesIO(audio['bytes']))
-            
-            # Convertir a mono y a los floats que espera librosa
             samples = np.array(audio_seg.get_array_of_samples()).astype(np.float32)
             sr = audio_seg.frame_rate
-            
-            # Normalizar el audio (importante para que no de 0)
             y = samples / (2**15) 
 
-            # 2. Detección de frecuencia
             pitches, magnitudes = librosa.piptrack(y=y, sr=sr)
             index = magnitudes.argmax()
             pitch_detectado = pitches.flatten()[index]
-            
-            if pitch_detectado > 40: # Filtramos ruidos muy bajos
-                st.metric("Frecuencia Detectada", f"{pitch_detectado:.2f} Hz")
-                st.success(f"¡Nota capturada!")
+
+            if pitch_detectado > 40:
+                # Calcular la diferencia
+                diferencia = pitch_detectado - hz_objetivo
+                
+                col1, col2 = st.columns(2)
+                col1.metric("Detectado", f"{pitch_detectado:.2f} Hz")
+                col2.metric("Objetivo", f"{hz_objetivo:.2f} Hz", f"{diferencia:.2f} Hz")
+
+                # Lógica de guía para el usuario
+                if abs(diferencia) < 2:
+                    st.success(f"✅ ¡Perfecto! Estás en el clavo con {nota_ref}")
+                    st.balloons()
+                elif diferencia > 0:
+                    st.warning(f"🔼 Demasiado agudo. ¡Baja un poco la tensión!")
+                else:
+                    st.info(f"🔽 Demasiado grave. ¡Sube un poco la tensión!")
             else:
-                st.warning("Sonido demasiado débil, intenta de nuevo.")
+                st.warning("⚠️ No se detectó un sonido claro. Intenta grabar más cerca.")
                 
             st.audio(audio['bytes'])
             
         except Exception as e:
-            st.error(f"Error procesando audio: {e}")
+            st.error(f"Error: {e}")
 # --- PESTAÑA 2: SEPARADOR ---
 with tabs[1]:
     st.header("Separador de Voz (AI)")
