@@ -1,19 +1,10 @@
-import requests
-import streamlit as st
+# api_utils.py
+from google.cloud import storage
 
-def separar_audio_con_api(file_path, api_key):
-    """
-    Función genérica para llamar a tu API de separación.
-    Ajusta los parámetros según la documentación de tu proveedor de API.
-    """
-    url = "URL_DE_TU_API_AQUI"
-    headers = {"Authorization": f"Bearer {api_key}"}
-    
-    with open(file_path, 'rb') as f:
-        files = {'file': f}
-        response = requests.post(url, headers=headers, files=files)
-    
-    if response.status_code == 200:
-        return response.json() # Debería devolver las URLs de los archivos procesados
-    else:
-        return None
+def subir_a_gcs(archivo_local, nombre_destino):
+    """Sube el audio a un bucket de Google Cloud para ser procesado."""
+    storage_client = storage.Client()
+    bucket = storage_client.bucket("nombre-de-tu-bucket") # Nombre de tu bucket
+    blob = bucket.blob(nombre_destino)
+    blob.upload_from_filename(archivo_local)
+    return f"gs://nombre-de-tu-bucket/{nombre_destino}"
