@@ -4,3 +4,4 @@ librosa
 numpy
 pydub
 plotly
+streamlit-webrtc
