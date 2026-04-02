@@ -2,6 +2,7 @@ import streamlit as st
 from streamlit_mic_recorder import mic_recorder
 import librosa
 import numpy as np
+import io
 
 # Configuración de la página
 st.set_page_config(page_title="Karaoke AI", layout="wide")
@@ -13,13 +14,30 @@ tabs = st.tabs(["🎯 Afinador", "✂️ Separador", "🎼 Preparación", "🎙�
 # --- PESTAÑA 1: AFINADOR ---
 with tabs[0]:
     st.header("Afinador")
-    nota_ref = st.selectbox("Nota objetivo", ["C (Do)", "D (Re)", "E (Mi)", "F (Fa)", "G (Sol)", "A (La)", "B (Si)"])
-    st.write("Graba un fragmento corto para ver tu afinación:")
-    audio = mic_recorder(start_prompt="Record", stop_prompt="Stop", key='afinador')
+    nota_ref = st.selectbox("Nota objetivo", ["C", "D", "E", "F", "G", "A", "B"])
+    
+    audio = mic_recorder(start_prompt="Grabar nota", stop_prompt="Detener", key='afinador')
+    
     if audio:
+        # 1. Convertir bytes a formato que Librosa entienda
+        audio_bytes = io.BytesIO(audio['bytes'])
+        y, sr = librosa.load(audio_bytes, sr=None) # sr=None mantiene el sample rate original
+        
+        # 2. Algoritmo de detección de frecuencia (Pitch)
+        pitches, magnitudes = librosa.piptrack(y=y, sr=sr)
+        
+        # Extraer la frecuencia más prominente
+        index = magnitudes.argmax()
+        pitch_detectado = pitches.flatten()[index]
+        
+        if pitch_detectado > 0:
+            st.metric("Frecuencia Detectada", f"{pitch_detectado:.2f} Hz")
+            # Aquí podrías comparar pitch_detectado con la nota_ref
+            st.success(f"¡Nota capturada! Frecuencia: {int(pitch_detectado)} Hz")
+        else:
+            st.warning("No se detectó un sonido claro. Prueba grabar más cerca.")
+            
         st.audio(audio['bytes'])
-        st.success("Analizando frecuencia... (Aquí conectaremos Librosa)")
-
 # --- PESTAÑA 2: SEPARADOR ---
 with tabs[1]:
     st.header("Separador de Voz (AI)")
