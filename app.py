@@ -92,9 +92,19 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 -----------------------------
 PESTAÑA 1: AFINADOR
 -----------------------------
+from tuner_ui import render_tuner_gauge
+
 with tab1:
-st.header("Afinador")
-st.write("Más adelante aquí pondremos el detector de afinación.")
+    st.header("Afinador")
+    # Este valor vendría de tu lógica de audio, por ahora lo simulamos
+    frecuencia_simulada = st.slider("Simular Frecuencia (Hz)", 40, 1000, 440)
+    
+    render_tuner_gauge(frecuencia_simulada)
+    
+    if 435 <= frecuencia_simulada <= 445:
+        st.success("¡Perfecto! Estás afinado en La (A4)")
+    else:
+        st.warning("Ajusta tu tono...")
 
 -----------------------------
 PESTAÑA 2: SEPARADOR
