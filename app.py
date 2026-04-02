@@ -54,8 +54,12 @@ with tabs[0]:
         async_processing=True,
     )
 
-    # Gráfico de Aguja
+    # Crea un espacio que se actualiza solo
+    contenedor_aguja = st.empty()
+    
     actual = st.session_state["pitch_vivo"]
+    
+    # Crear la figura (tu código de Plotly está perfecto)
     fig = go.Figure(go.Indicator(
         mode = "gauge+number",
         value = actual,
@@ -67,8 +71,10 @@ with tabs[0]:
             'threshold': {'line': {'color': "red", 'width': 5}, 'value': hz_obj}
         }
     ))
-    
-    st.plotly_chart(fig, use_container_width=True)
+
+    # Dibujar dentro del contenedor vacío
+    with contenedor_aguja:
+        st.plotly_chart(fig, use_container_width=True)
 
     # Motor de movimiento
     if ctx.state.playing:
