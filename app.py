@@ -1,26 +1,25 @@
+python
 import streamlit as st
 from streamlit_webrtc import webrtc_streamer, WebRtcMode, AudioProcessorBase
 import av
 import numpy as np
 import librosa
 import plotly.graph_objects as go
-import time
 
+# 1. Configuración de página
 st.set_page_config(page_title="Afinador Pro En Vivo", layout="wide")
 
-# --- CEREBRO DEL AFINADOR ---
+# --- PROCESADOR DE AUDIO ---
 class AfinadorProcessor(AudioProcessorBase):
     def __init__(self):
         self.pitch = 0.0
 
     def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
         raw_samples = frame.to_ndarray()
-        # Convertir a mono y normalizar para Librosa
         y = raw_samples.astype(np.float32).flatten() / 32768.0
         sr = frame.sample_rate
         
-        # Detección de frecuencia
-        pitches, magnitudes = librosa.piptrack(y=y, sr=sr, fmin=80, fmax=1000)
+        pitches, magnitudes = librosa.piptrack(y=y, sr=sr, fmin=75, fmax=1000)
         if magnitudes.max() > 0.1:
             pitch = pitches.flatten()[magnitudes.argmax()]
             if pitch > 0:
@@ -37,22 +36,22 @@ frecuencias = {"C": 261.63, "D": 293.66, "E": 329.63, "F": 349.23, "G": 392.00, 
 nota_obj = st.selectbox("Nota Objetivo", list(frecuencias.keys()))
 hz_obj = frecuencias[nota_obj]
 
-# EL COMPONENTE DE MICRO (Sin la línea de STUN para evitar errores)
-webrtc_ctx = webrtc_streamer(
-        key="afinador-final-pro",
-        mode=WebRtcMode.SENDRECV,
-        rtc_configuration={
-            "iceServers": [
-                {"urls": ["stun:stun.l.google.com:19302"]},
-                {"urls": ["stun:stun1.l.google.com:19302"]},
-                {"urls": ["stun:stun2.l.google.com:19302"]}
-            ]
-        },
-        media_stream_constraints={"video": False, "audio": True},
-        async_processing=True,
-    )
+# EL COMPONENTE DE MICRO (Aquí definimos 'ctx')
+ctx = webrtc_streamer(
+    key="afinador-final-v1",
+    mode=WebRtcMode.SENDRECV,
+    rtc_configuration={
+        "iceServers": [
+            {"urls": ["stun:://google.com"]},
+            {"urls": ["stun:://google.com"]}
+        ]
+    },
+    media_stream_constraints={"video": False, "audio": True},
+    audio_processor_factory=AfinadorProcessor,
+    async_processing=True,
+)
 
-# --- EL GRÁFICO ---
+# --- DIBUJO DE LA AGUJA ---
 actual = st.session_state["pitch_vivo"]
 
 fig = go.Figure(go.Indicator(
@@ -71,7 +70,6 @@ placeholder = st.empty()
 with placeholder:
     st.plotly_chart(fig, use_container_width=True)
 
-# MOTOR DE MOVIMIENTO
+# MOTOR DE MOVIMIENTO (Aquí usamos 'ctx')
 if ctx.state.playing:
-    time.sleep(0.1) # Pequeña pausa para no saturar la CPU
     st.rerun()
