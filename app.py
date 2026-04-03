@@ -102,7 +102,7 @@ with tab1:
         use_container_width=True,
         key='tuner'
     )
-        if audio:
+    if audio:
         st.success("Audio capturado. Procesando...")
         
         import io
