@@ -8,17 +8,25 @@ class PitchProcessor(AudioProcessorBase):
     def __init__(self):
         self.pitch = 0.0
     
-        def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
-            audio = frame.to_ndarray().mean(axis=0)
+    def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
+        # Convertir a formato numpy
+        audio = frame.to_ndarray().mean(axis=0)
         
-        # Normalización agresiva
-        audio = audio / np.max(np.abs(audio)) if np.max(np.abs(audio)) > 0 else audio
-        
-        # Intentar detectar el pitch con un rango más amplio y tolerancia
-        try:
-            f0 = librosa.yin(audio.astype(np.float32), fmin=50, fmax=1000, sr=48000)
-            self.pitch = float(np.nanmedian(f0))
-        except:
+        # Evitar división por cero
+        max_val = np.max(np.abs(audio))
+        if max_val > 0.001: 
+            audio = audio / max_val
+            
+            # Detectar pitch (Yin es preciso pero requiere señal clara)
+            try:
+                # Usamos una muestra más pequeña para procesar en tiempo real
+                f0 = librosa.yin(audio.astype(np.float32), fmin=50, fmax=1000, sr=48000)
+                pitch_val = float(np.nanmedian(f0))
+                if pitch_val > 50: # Filtro de ruido
+                    self.pitch = pitch_val
+            except:
+                self.pitch = 0.0
+        else:
             self.pitch = 0.0
             
         return frame
@@ -31,7 +39,7 @@ def render_realtime_tuner():
     
     st.write(f"### Objetivo: {nota_obj} ({target_hz:.1f} Hz)")
     
-    # 2. Streamer
+    # 2. Configuración del Streamer
     webrtc_ctx = webrtc_streamer(
         key="tuner",
         mode=WebRtcMode.SENDONLY,
@@ -39,24 +47,28 @@ def render_realtime_tuner():
         media_stream_constraints={"audio": True, "video": False},
     )
 
-    # 3. Lógica de visualización (DEBE ESTAR DENTRO DE LA FUNCIÓN)
+    # 3. Lógica de visualización
     if webrtc_ctx.audio_processor:
         pitch = webrtc_ctx.audio_processor.pitch
         
+        # DEBUG: Si el pitch es 0, el micro no está detectando nada o el volumen es muy bajo
         if pitch > 0:
             st.metric("Tu frecuencia actual", f"{pitch:.1f} Hz")
             
             # Cálculo de afinación
             diff = (pitch - target_hz) / target_hz * 100
-            # Normalizar para la barra (de 0 a 1)
-            bar_value = min(max((diff + 5) / 10, 0), 1)
-            st.progress(bar_value)
             
-            if abs(diff) < 2:
+            # Barra visual de afinación
+            # Convertimos la diferencia porcentual en una posición de barra
+            bar_value = (diff + 10) / 20 # Centrado en 0, rango de +/- 10%
+            st.progress(min(max(bar_value, 0), 1))
+            
+            if abs(diff) < 1.5:
                 st.success("¡AFINADO!")
             elif diff < 0:
                 st.warning("Estás BAJO de tono. ¡Sube un poco!")
             else:
                 st.warning("Estás ALTO de tono. ¡Baja un poco!")
         else:
-            st.info("🎤 Cantando... esperando tono...")
+            st.info("🎤 Cantando... esperando tono claro...")
+
