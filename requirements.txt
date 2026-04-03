@@ -1,5 +1,6 @@
 streamlit
 streamlit-echarts
-audio-recorder-streamlit
+streamlit-webrtc
 librosa
 numpy
+av
