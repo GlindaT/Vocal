@@ -8,18 +8,19 @@ class PitchProcessor(AudioProcessorBase):
     def __init__(self):
         self.pitch = 0.0
     
-    def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
-        # Convertir a numpy
+        def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
         audio = frame.to_ndarray().mean(axis=0)
         
-        # Procesar si hay suficiente volumen
-        if np.max(np.abs(audio)) > 0.001: 
-            # Asegurar que el audio tenga la forma correcta para librosa
-            samples = audio.astype(np.float32)
-            # Usamos Yin para detectar frecuencia fundamental
-            f0 = librosa.yin(samples, fmin=50, fmax=1000, sr=48000)
-            self.pitch = float(np.nanmedian(f0))
+        # Normalización agresiva
+        audio = audio / np.max(np.abs(audio)) if np.max(np.abs(audio)) > 0 else audio
         
+        # Intentar detectar el pitch con un rango más amplio y tolerancia
+        try:
+            f0 = librosa.yin(audio.astype(np.float32), fmin=50, fmax=1000, sr=48000)
+            self.pitch = float(np.nanmedian(f0))
+        except:
+            self.pitch = 0.0
+            
         return frame
 
 def render_realtime_tuner():
