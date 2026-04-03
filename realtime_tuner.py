@@ -34,7 +34,11 @@ def render_realtime_tuner():
         media_stream_constraints={"audio": True, "video": False},
     )
 
-    if webrtc_ctx.audio_processor:
+    # Dentro de render_realtime_tuner
+if webrtc_ctx.audio_processor:
+    # Añadimos un pequeño debug visual
+    volumen_debug = np.max(np.abs(webrtc_ctx.audio_processor.pitch)) # Solo para ver si llega algo
+    st.write(f"Nivel de señal detectada: {volumen_debug}") 
         # 2. Lógica de la Aguja
         pitch = webrtc_ctx.audio_processor.pitch
         if pitch > 0:
