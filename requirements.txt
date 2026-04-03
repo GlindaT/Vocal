@@ -2,4 +2,4 @@ streamlit
 streamlit-mic-recorder
 librosa
 numpy
-av
+pydub
