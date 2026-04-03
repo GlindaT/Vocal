@@ -1,6 +1,5 @@
 streamlit
-streamlit-echarts
-streamlit-webrtc
+streamlit-mic-recorder
 librosa
 numpy
 av
