@@ -90,14 +90,11 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 # -----------------------------
 with tab1:
     st.header("Afinador en Tiempo Real")
+    st.write("Afinador de alta precisión ejecutado en tu navegador.")
     
-    # Importamos y ejecutamos el tuner real
-    try:
-        from realtime_tuner import render_realtime_tuner
-        render_realtime_tuner()
-    except Exception as e:
-        st.error(f"Error al cargar el afinador: {e}")
-        st.info("Alternativa: Usa un afinador externo mientras solucionamos esto.")
+    # Importamos la función que creamos
+    from tuner_js import render_tuner_js
+    render_tuner_js()
 
 # -----------------------------
 # PESTAÑA 2: SEPARADOR
