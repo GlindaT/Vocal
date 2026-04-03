@@ -1,102 +1,55 @@
-# realtime_tuner.py
-from streamlit_webrtc import AudioProcessorBase, WebRtcMode, webrtc_streamer
-import av
+import streamlit as st
 import librosa
 import numpy as np
-import streamlit as st
+from streamlit_webrtc import AudioProcessorBase, webrtc_streamer, WebRtcMode
+import av
 
-class PitchDetector(AudioProcessorBase):
+class PitchProcessor(AudioProcessorBase):
     def __init__(self):
-        self.current_pitch = 0.0
-        self.note = "--"
+        self.pitch = 0.0
     
     def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
-        # Convertir el frame de audio a numpy array
-        raw_samples = frame.to_ndarray()
-        
-        # Convertir a mono si es estéreo
-        if raw_samples.ndim > 1:
-            samples = raw_samples.mean(axis=0)
-        else:
-            samples = raw_samples
-            
-        # Normalizar a float32 [-1.0, 1.0]
-        samples = samples.astype(np.float32) / 32768.0
-        
-        # Procesar solo si tenemos suficientes muestras
-        if len(samples) > 1024:
-            try:
-                # Usamos el algoritmo YIN de librosa para detectar pitch
-                f0, voiced_flag, voiced_probs = librosa.pyin(
-                    samples,
-                    fmin=librosa.note_to_hz('C2'),  # 65 Hz
-                    fmax=librosa.note_to_hz('C7'),  # 2093 Hz (rango vocal)
-                    sr=frame.sample_rate
-                )
-                
-                # Filtrar valores válidos (no NaN)
-                valid_pitches = f0[~np.isnan(f0)]
-                if len(valid_pitches) > 0:
-                    pitch = np.median(valid_pitches)
-                    if pitch > 0:
-                        self.current_pitch = pitch
-                        # Convertir frecuencia a nombre de nota
-                        try:
-                            self.note = librosa.hz_to_note(pitch)
-                        except:
-                            self.note = "--"
-            except Exception:
-                pass
-                
+        # Procesamiento rápido para obtener frecuencia fundamental
+        audio = frame.to_ndarray().mean(axis=0)
+        # Solo procesamos si hay suficiente amplitud (evitar ruido de fondo)
+        if np.max(np.abs(audio)) > 0.05:
+            # Algoritmo ligero de detección de tono
+            f0 = librosa.yin(audio.astype(np.float32), fmin=50, fmax=1000)
+            self.pitch = np.nanmedian(f0)
         return frame
 
 def render_realtime_tuner():
-    st.write("### 🎤 Activa tu micrófono y empieza a cantar")
-    st.write("El analizador se actualiza automáticamente mientras cantas.")
+    # 1. Selector de Nota Objetivo
+    notas = ['C4', 'C#4', 'D4', 'D#4', 'E4', 'F4', 'F#4', 'G4', 'G#4', 'A4', 'A#4', 'B4']
+    nota_obj = st.selectbox("Elige la nota objetivo para afinar:", notas, index=9) # A4 por defecto
+    target_hz = librosa.note_to_hz(nota_obj)
     
-    # Iniciar el streamer de WebRTC
-    ctx = webrtc_streamer(
-        key="pitch-detector",
-        mode=WebRtcMode.SENDONLY,  # Solo enviamos audio (micrófono), no recibimos video
-        audio_processor_factory=PitchDetector,
+    st.write(f"### Objetivo: {nota_obj} ({target_hz:.1f} Hz)")
+    
+    webrtc_ctx = webrtc_streamer(
+        key="tuner",
+        mode=WebRtcMode.SENDONLY,
+        audio_processor_factory=PitchProcessor,
         media_stream_constraints={"audio": True, "video": False},
-        async_processing=True,
     )
-    
-    # Mostrar resultados si el procesador está activo
-    if ctx.audio_processor:
-        # Usamos st.empty() para actualizar sin parpadear
-        pitch_placeholder = st.empty()
-        gauge_placeholder = st.empty()
-        note_placeholder = st.empty()
-        
-        # Leer valores actuales
-        pitch = ctx.audio_processor.current_pitch
-        note = ctx.audio_processor.note
-        
+
+    if webrtc_ctx.audio_processor:
+        # 2. Lógica de la Aguja
+        pitch = webrtc_ctx.audio_processor.pitch
         if pitch > 0:
-            # Mostramos métricas
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("Frecuencia", f"{pitch:.1f} Hz")
-            with col2:
-                st.metric("Nota detectada", note)
+            # Calculamos la diferencia porcentual para la aguja
+            # -50 = muy bajo, 0 = perfecto, +50 = muy alto
+            diff = (pitch - target_hz) / target_hz * 100
             
-            # Mostrar el gauge (importa tu función de tuner_ui aquí)
-            from tuner_ui import render_tuner_gauge
-            render_tuner_gauge(pitch)
+            # Gauge para mostrar qué tan cerca estamos
+            st.metric("Tu frecuencia", f"{pitch:.1f} Hz")
             
-            # Feedback visual de afinación
-            target = 440.0  # Podrías hacer esto dinámico según la nota seleccionada
-            diff = abs(pitch - target)
+            # Barra visual de afinación
+            st.progress(min(max((diff + 5) / 10, 0), 1))
             
-            if diff < 5:
-                st.success("🎯 ¡Afinado perfecto!")
-            elif pitch < target:
-                st.warning("⬆️ Sube un poco el tono")
+            if abs(diff) < 2:
+                st.success("¡AFINADO!")
+            elif diff < 0:
+                st.warning("Estás BAJO de tono. ¡Sube un poco!")
             else:
-                st.warning("⬇️ Baja un poco el tono")
-        else:
-            st.info("Esperando sonido... canta cerca del micrófono")
-    
-    return ctx
+                st.warning("Estás ALTO de tono. ¡Baja un poco!")
