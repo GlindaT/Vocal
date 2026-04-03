@@ -1,45 +1,49 @@
-import streamlit.components.v1 as components
+import streamlit as st
+import plotly.graph_objects as go
+import numpy as np
 
 def render_tuner_js():
-    components.html("""
-    <div id="app" style="background:#222; color:white; text-align:center; padding:50px; font-family:sans-serif; height: 300px; border-radius:10px;">
-        <div style="margin-bottom:20px;">
-            Nota Objetivo: 
-            <select id="targetNote" style="background:#444; color:white; border:none; padding:5px;">
-                <option value="65.41">C2</option><option value="440.00">A4</option>
-            </select>
-        </div>
-        <h1 id="detectedNote" style="font-size:80px; color:#4CAF50; margin:10px;">--</h1>
-        <div id="instruction" style="font-size:24px; color:orange;">Presiona Iniciar</div>
-        <br>
-        <button id="start" style="background:#4CAF50; color:white; border:none; padding:10px 20px; font-size:16px;">▶ Iniciar</button>
-        <button id="stop" style="background:#f44336; color:white; border:none; padding:10px 20px; font-size:16px;">⏹ Detener</button>
-    </div>
-    <script>
-        let audioCtx, analyser, animationId;
-        const noteEl = document.getElementById('detectedNote');
-        const instrEl = document.getElementById('instruction');
+    # Inicializar el estado de la nota en la sesión
+    if 'history' not in st.session_state:
+        st.session_state.history = []
 
-        document.getElementById('start').onclick = async () => {
-            audioCtx = new AudioContext();
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            analyser = audioCtx.createAnalyser();
-            analyser.fftSize = 2048;
-            audioCtx.createMediaStreamSource(stream).connect(analyser);
-            update();
-        };
-
-        function update() {
-            const buffer = new Float32Array(analyser.fftSize);
-            analyser.getFloatTimeDomainData(buffer);
-            // Cálculo simple de pitch para mostrar la nota
-            // (Aquí conectaríamos con una librería de notas como Pitchfinder)
-            const target = parseFloat(document.getElementById('targetNote').value);
-            // Simulación visual:
-            noteEl.innerText = "A4"; 
-            instrEl.innerText = "Estás agudo. Baja a C2";
-            animationId = requestAnimationFrame(update);
-        }
-        document.getElementById('stop').onclick = () => cancelAnimationFrame(animationId);
-    </script>
-    """, height=400)
+    # UI Minimalista
+    st.markdown("""
+        <style>
+        .stMetric { text-align: center; }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    col1, col2 = st.columns([1, 3])
+    with col1:
+        nota_obj = st.selectbox("Objetivo:", ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4'], index=5)
+        if st.button("Limpiar gráfico"):
+            st.session_state.history = []
+    
+    # Aquí iría tu lógica de captura (usando el código que ya te funciona)
+    # Supongamos que 'current_pitch' es el valor que detectas
+    # ... tu lógica de detección ...
+    
+    # GRÁFICO DINÁMICO
+    st.session_state.history.append(current_pitch if current_pitch > 0 else None)
+    if len(st.session_state.history) > 30: 
+        st.session_state.history.pop(0) # Mantenemos solo los últimos 30 segundos
+        
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        y=st.session_state.history, 
+        mode='lines+markers', 
+        line=dict(color='#00FF00', width=4)
+    ))
+    
+    # Línea horizontal de referencia (Nota objetivo)
+    fig.add_hline(y=librosa.note_to_hz(nota_obj), line_dash="dash", line_color="orange")
+    
+    fig.update_layout(
+        plot_bgcolor='black',
+        paper_bgcolor='black',
+        font_color='white',
+        yaxis=dict(range=[200, 600]), # Rango vocal para C4-A4
+        height=300
+    )
+    st.plotly_chart(fig, use_container_width=True)
