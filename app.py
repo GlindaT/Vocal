@@ -88,23 +88,16 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 # -----------------------------
 # PESTAÑA 1: AFINADOR (CORREGIDA)
 # -----------------------------
-from audio_recorder_streamlit import audio_recorder
-from tuner_ui import render_tuner_gauge
-
-from audio_analyzer import get_pitch_from_bytes # <--- IMPORTA ESTO
-
 with tab1:
-    st.header("Afinador")
-    audio_bytes = audio_recorder(...) # (Tu código previo)
+    st.header("Afinador en Tiempo Real")
     
-    if audio_bytes:
-        st.audio(audio_bytes, format="audio/wav")
-        with st.spinner("Analizando tu tono..."):
-            frecuencia = get_pitch_from_bytes(audio_bytes)
-            st.write(f"Frecuencia detectada: {frecuencia:.2f} Hz")
-            
-            # Dibujamos en el gauge real
-            render_tuner_gauge(frecuencia)
+    # Importamos y ejecutamos el tuner real
+    try:
+        from realtime_tuner import render_realtime_tuner
+        render_realtime_tuner()
+    except Exception as e:
+        st.error(f"Error al cargar el afinador: {e}")
+        st.info("Alternativa: Usa un afinador externo mientras solucionamos esto.")
 
 # -----------------------------
 # PESTAÑA 2: SEPARADOR
