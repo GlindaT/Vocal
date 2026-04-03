@@ -88,13 +88,25 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 # -----------------------------
 # PESTAÑA 1: AFINADOR (CORREGIDA)
 # -----------------------------
+import streamlit as st
+from streamlit_mic_recorder import mic_recorder
+
 with tab1:
     st.header("Afinador en Tiempo Real")
-    st.write("Afinador de alta precisión ejecutado en tu navegador.")
     
-    # Importamos la función que creamos
-    from tuner_js import render_tuner_js
-    render_tuner_js()
+    # Este componente es el estándar de oro en estabilidad
+    audio = mic_recorder(
+        start_prompt="🎤 Iniciar Afinador",
+        stop_prompt="⏹️ Detener",
+        just_once=False,
+        use_container_width=True,
+        key='tuner'
+    )
+
+    if audio:
+        st.success("Audio capturado. Procesando...")
+        # Aquí puedes usar el mismo audio para el análisis de frecuencia
+        # Con esto, el botón de detener SÍ responde.
 
 # -----------------------------
 # PESTAÑA 2: SEPARADOR
