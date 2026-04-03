@@ -40,7 +40,7 @@ if webrtc_ctx.audio_processor:
     volumen_debug = np.max(np.abs(webrtc_ctx.audio_processor.pitch)) # Solo para ver si llega algo
     st.write(f"Nivel de señal detectada: {volumen_debug}") 
         # 2. Lógica de la Aguja
-        pitch = webrtc_ctx.audio_processor.pitch
+    pitch = webrtc_ctx.audio_processor.pitch
         if pitch > 0:
             # Calculamos la diferencia porcentual para la aguja
             # -50 = muy bajo, 0 = perfecto, +50 = muy alto
