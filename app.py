@@ -102,11 +102,35 @@ with tab1:
         use_container_width=True,
         key='tuner'
     )
-    streamlit
-streamlit-mic-recorder
-librosa
-numpy
-pydub
+        if audio:
+        st.success("Audio capturado. Procesando...")
+        
+        import io
+        import librosa
+        import numpy as np
+        from pydub import AudioSegment
+
+        # 1. Convertir bytes a AudioSegment de pydub
+        audio_segment = AudioSegment.from_file(io.BytesIO(audio['bytes']))
+        
+        # 2. Exportar a un formato que Librosa ame (RAW wav)
+        wav_io = io.BytesIO()
+        audio_segment.export(wav_io, format="wav")
+        wav_io.seek(0)
+        
+        # 3. Ahora sí, cargar con librosa
+        y, sr = librosa.load(wav_io, sr=None)
+        
+        # 4. Calcular el Pitch
+        f0, _, _ = librosa.pyin(y, fmin=50, fmax=1000)
+        pitch = np.nanmedian(f0)
+        
+        if not np.isnan(pitch):
+            nota = librosa.hz_to_note(pitch)
+            st.metric("Nota detectada", nota)
+            st.write(f"Frecuencia: {pitch:.2f} Hz")
+        else:
+            st.warning("No se detectó un tono claro. ¡Canta más cerca!")streamlit
 
 # -----------------------------
 # PESTAÑA 2: SEPARADOR
