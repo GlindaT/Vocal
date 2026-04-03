@@ -9,7 +9,7 @@ class PitchProcessor(AudioProcessorBase):
         self.pitch = 0.0
     
         def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
-        audio = frame.to_ndarray().mean(axis=0)
+            audio = frame.to_ndarray().mean(axis=0)
         
         # CAMBIA EL 0.05 POR UN VALOR MÁS PEQUEÑO COMO 0.005
         if np.max(np.abs(audio)) > 0.005: 
