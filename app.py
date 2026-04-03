@@ -107,6 +107,8 @@ with tab1:
         st.success("Audio capturado. Procesando...")
         # Aquí puedes usar el mismo audio para el análisis de frecuencia
         # Con esto, el botón de detener SÍ responde.
+        # Aquí puedes usar el mismo audio para el análisis de frecuencia
+        # Con esto, el botón de detener SÍ responde.
 
 # -----------------------------
 # PESTAÑA 2: SEPARADOR
