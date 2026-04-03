@@ -10,14 +10,16 @@ class PitchProcessor(AudioProcessorBase):
     
     def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
         audio = frame.to_ndarray().mean(axis=0)
-        max_val = np.max(np.abs(audio))
-        if max_val > 0.001: 
-            audio = audio / max_val
+        
+        # Filtro de ruido más flexible
+        if np.max(np.abs(audio)) > 0.0001: 
             try:
                 f0 = librosa.yin(audio.astype(np.float32), fmin=50, fmax=1000, sr=frame.sample_rate)
                 pitch_val = float(np.nanmedian(f0))
                 if pitch_val > 50:
                     self.pitch = pitch_val
+                else:
+                    self.pitch = 0.0
             except:
                 self.pitch = 0.0
         else:
@@ -25,32 +27,24 @@ class PitchProcessor(AudioProcessorBase):
         return frame
 
 def render_realtime_tuner():
-    notas = ['C4', 'C#4', 'D4', 'D#4', 'E4', 'F4', 'F#4', 'G4', 'G#4', 'A4', 'A#4', 'B4']
-    nota_obj = st.selectbox("Elige la nota objetivo:", notas, index=9)
-    target_hz = librosa.note_to_hz(nota_obj)
+    # Usamos st.empty para que el componente "refresque" el estado
+    placeholder = st.empty()
     
-    st.write(f"### Objetivo: {nota_obj} ({target_hz:.1f} Hz)")
-    
-    webrtc_ctx = webrtc_streamer(
-        key="tuner",
-        mode=WebRtcMode.SENDONLY,
-        audio_processor_factory=PitchProcessor,
-        media_stream_constraints={"audio": True, "video": False},
-    )
+    with placeholder.container():
+        st.write("### 🎤 Afinador en tiempo real")
+        webrtc_ctx = webrtc_streamer(
+            key="tuner",
+            mode=WebRtcMode.SENDONLY,
+            audio_processor_factory=PitchProcessor,
+            media_stream_constraints={"audio": True, "video": False},
+        )
 
-    if webrtc_ctx.audio_processor:
-        pitch = webrtc_ctx.audio_processor.pitch
-        if pitch > 0:
-            st.metric("Tu frecuencia actual", f"{pitch:.1f} Hz")
-            diff = (pitch - target_hz) / target_hz * 100
-            bar_value = (diff + 10) / 20
-            st.progress(min(max(bar_value, 0), 1))
+        if webrtc_ctx.audio_processor:
+            pitch = webrtc_ctx.audio_processor.pitch
             
-            if abs(diff) < 2:
-                st.success("¡AFINADO!")
-            elif diff < 0:
-                st.warning("Estás BAJO de tono. ¡Sube un poco!")
+            # Forzamos la actualización visual
+            st.write(f"Frecuencia detectada: {pitch:.1f} Hz")
+            if pitch > 0:
+                st.success("¡Audio recibido! Cantando...")
             else:
-                st.warning("Estás ALTO de tono. ¡Baja un poco!")
-        else:
-            st.info("🎤 Cantando... esperando tono claro...")
+                st.info("Esperando sonido...")
