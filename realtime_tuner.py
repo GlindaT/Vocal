@@ -8,11 +8,12 @@ class PitchProcessor(AudioProcessorBase):
     def __init__(self):
         self.pitch = 0.0
     
-    def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
-        # Procesamiento rápido para obtener frecuencia fundamental
+        def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
         audio = frame.to_ndarray().mean(axis=0)
-        # Solo procesamos si hay suficiente amplitud (evitar ruido de fondo)
-        if np.max(np.abs(audio)) > 0.05:
+        
+        # CAMBIA EL 0.05 POR UN VALOR MÁS PEQUEÑO COMO 0.005
+        if np.max(np.abs(audio)) > 0.005: 
+            # El resto del código se queda igual...
             # Algoritmo ligero de detección de tono
             f0 = librosa.yin(audio.astype(np.float32), fmin=50, fmax=1000)
             self.pitch = np.nanmedian(f0)
