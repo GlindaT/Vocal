@@ -130,7 +130,7 @@ with tab1:
             st.metric("Nota detectada", nota)
             st.write(f"Frecuencia: {pitch:.2f} Hz")
         else:
-            st.warning("No se detectó un tono claro. ¡Canta más cerca!")streamlit
+            st.warning("No se detectó un tono claro. ¡Canta más cerca!")
 
 # -----------------------------
 # PESTAÑA 2: SEPARADOR
