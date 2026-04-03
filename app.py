@@ -102,33 +102,11 @@ with tab1:
         use_container_width=True,
         key='tuner'
     )
-    if audio:
-        st.success("Audio capturado. Procesando...")
-        
-        # 1. Convertimos los bytes del audio a formato de librosa
-        import io
-        import librosa
-        import numpy as np
-        
-        audio_data = audio['bytes']
-        # Cargamos el audio capturado
-        y, sr = librosa.load(io.BytesIO(audio_data), sr=None)
-        
-        # 2. Calculamos el Pitch (frecuencia fundamental)
-        f0, voiced_flag, voiced_probs = librosa.pyin(y, fmin=librosa.note_to_hz('C2'), fmax=librosa.note_to_hz('C7'))
-        pitch = np.nanmedian(f0)
-        
-        # 3. Mostramos el resultado
-        if not np.isnan(pitch):
-            nota = librosa.hz_to_note(pitch)
-            st.metric("Nota detectada", nota)
-            st.write(f"Frecuencia: {pitch:.2f} Hz")
-            
-            # Feedback visual simple
-            if 430 < pitch < 450: # Rango alrededor de La4 (440Hz)
-                st.success("¡Estás afinado en La (A4)!")
-        else:
-            st.warning("No se pudo detectar una nota clara, intenta cantar más cerca.")
+    streamlit
+streamlit-mic-recorder
+librosa
+numpy
+pydub
 
 # -----------------------------
 # PESTAÑA 2: SEPARADOR
