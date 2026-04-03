@@ -90,48 +90,80 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 # -----------------------------
 import streamlit as st
 from streamlit_mic_recorder import mic_recorder
+import io
+import librosa
+import numpy as np
+from pydub import AudioSegment
+import plotly.graph_objects as go
 
 with tab1:
-    st.header("Afinador en Tiempo Real")
+    st.header("Afinador de Precisión")
     
-    # Este componente es el estándar de oro en estabilidad
+    # 1. EL USUARIO ELIGE LA NOTA OBJETIVO
+    st.write("### 1. Elige la nota que quieres afinar")
+    notas_objetivo = ['C4 (Do)', 'C#4 (Do#)', 'D4 (Re)', 'D#4 (Re#)', 'E4 (Mi)', 'F4 (Fa)', 'F#4 (Fa#)', 'G4 (Sol)', 'G#4 (Sol#)', 'A4 (La)', 'A#4 (La#)', 'B4 (Si)']
+    # Extraemos solo la parte técnica (ej: 'A4')
+    nota_seleccionada = st.selectbox("Nota Objetivo:", notas_objetivo, index=9).split(" ")[0] 
+    
+    # Calculamos la frecuencia exacta de esa nota
+    target_hz = librosa.note_to_hz(nota_seleccionada)
+    st.info(f"🎯 Frecuencia objetivo para {nota_seleccionada}: **{target_hz:.2f} Hz**")
+
+    # 2. EL USUARIO GRABA SU VOZ
+    st.write("### 2. Canta la nota")
     audio = mic_recorder(
-        start_prompt="🎤 Iniciar Afinador",
-        stop_prompt="⏹️ Detener",
+        start_prompt="🎤 Iniciar Grabación",
+        stop_prompt="⏹️ Analizar Afinación",
         just_once=False,
         use_container_width=True,
         key='tuner'
     )
+
+    # 3. ANÁLISIS Y COMPARACIÓN VISUAL
     if audio:
-        st.success("Audio capturado. Procesando...")
-        
-        import io
-        import librosa
-        import numpy as np
-        from pydub import AudioSegment
-
-        # 1. Convertir bytes a AudioSegment de pydub
-        audio_segment = AudioSegment.from_file(io.BytesIO(audio['bytes']))
-        
-        # 2. Exportar a un formato que Librosa ame (RAW wav)
-        wav_io = io.BytesIO()
-        audio_segment.export(wav_io, format="wav")
-        wav_io.seek(0)
-        
-        # 3. Ahora sí, cargar con librosa
-        y, sr = librosa.load(wav_io, sr=None)
-        
-        # 4. Calcular el Pitch
-        f0, _, _ = librosa.pyin(y, fmin=50, fmax=1000)
-        pitch = np.nanmedian(f0)
-        
-        if not np.isnan(pitch):
-            nota = librosa.hz_to_note(pitch)
-            st.metric("Nota detectada", nota)
-            st.write(f"Frecuencia: {pitch:.2f} Hz")
-        else:
-            st.warning("No se detectó un tono claro. ¡Canta más cerca!")
-
+        with st.spinner("Analizando tu voz..."):
+            audio_segment = AudioSegment.from_file(io.BytesIO(audio['bytes']))
+            wav_io = io.BytesIO()
+            audio_segment.export(wav_io, format="wav")
+            wav_io.seek(0)
+            
+            y, sr = librosa.load(wav_io, sr=None)
+            f0, _, _ = librosa.pyin(y, fmin=50, fmax=1000)
+            pitch = np.nanmedian(f0)
+            
+            if not np.isnan(pitch):
+                # Calcular la diferencia en "Cents" (medida musical)
+                # 0 es perfecto. Negativo es bajo (Flat). Positivo es alto (Sharp).
+                cents_diff = 1200 * np.log2(pitch / target_hz)
+                
+                # --- GRÁFICO DE LA AGUJA (PLOTLY GAUGE) ---
+                fig = go.Figure(go.Indicator(
+                    mode = "gauge+number+delta",
+                    value = pitch,
+                    title = {'text': f"Tu voz vs {nota_seleccionada}"},
+                    delta = {'reference': target_hz, 'position': "top"},
+                    gauge = {
+                        'axis': {'range': [target_hz * 0.9, target_hz * 1.1]}, # Rango visual
+                        'bar': {'color': "black"}, # La aguja
+                        'steps': [
+                            {'range': [target_hz * 0.9, target_hz * 0.98], 'color': "#ff4b4b"},  # Rojo (Bajo)
+                            {'range': [target_hz * 0.98, target_hz * 1.02], 'color': "#28a745"}, # Verde (Afinado)
+                            {'range': [target_hz * 1.02, target_hz * 1.1], 'color': "#ff4b4b"}   # Rojo (Alto)
+                        ],
+                    }
+                ))
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # Feedback en texto
+                st.write(f"Tu frecuencia real: **{pitch:.2f} Hz**")
+                if abs(cents_diff) <= 15:
+                    st.success("🎯 ¡Perfecto! Estás en el tono.")
+                elif cents_diff < 0:
+                    st.warning(f"📉 Estás BAJO de tono (Te faltan {abs(cents_diff):.0f} cents). ¡Sube un poco!")
+                else:
+                    st.warning(f"📈 Estás ALTO de tono (Te sobran {cents_diff:.0f} cents). ¡Baja un poco!")
+            else:
+                st.error("No detecté una nota clara. Asegúrate de cantar fuerte y claro cerca del micrófono.")
 # -----------------------------
 # PESTAÑA 2: SEPARADOR
 # -----------------------------
