@@ -9,7 +9,7 @@ class PitchProcessor(AudioProcessorBase):
         self.pitch = 0.0
     
         def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
-        audio = frame.to_ndarray().mean(axis=0)
+            audio = frame.to_ndarray().mean(axis=0)
         
         # Normalización agresiva
         audio = audio / np.max(np.abs(audio)) if np.max(np.abs(audio)) > 0 else audio
