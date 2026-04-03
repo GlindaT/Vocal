@@ -8,17 +8,12 @@ class PitchProcessor(AudioProcessorBase):
     def __init__(self):
         self.pitch = 0.0
     
-    # AQUÍ VA EL MÉTODO QUE ME PREGUNTAS:
     def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
-        # 1. Convertimos el frame a formato que numpy pueda leer
         audio = frame.to_ndarray().mean(axis=0)
-        
-        # 2. Análisis de frecuencia
         max_val = np.max(np.abs(audio))
         if max_val > 0.001: 
             audio = audio / max_val
             try:
-                # Usamos frame.sample_rate para que coincida con tu micro
                 f0 = librosa.yin(audio.astype(np.float32), fmin=50, fmax=1000, sr=frame.sample_rate)
                 pitch_val = float(np.nanmedian(f0))
                 if pitch_val > 50:
@@ -27,8 +22,35 @@ class PitchProcessor(AudioProcessorBase):
                 self.pitch = 0.0
         else:
             self.pitch = 0.0
-            
-        # 3. MUY IMPORTANTE: Devolvemos el frame para que el stream no se congele
-        return frame 
+        return frame
 
-# ... luego sigue tu función render_realtime_tuner() ...
+def render_realtime_tuner():
+    notas = ['C4', 'C#4', 'D4', 'D#4', 'E4', 'F4', 'F#4', 'G4', 'G#4', 'A4', 'A#4', 'B4']
+    nota_obj = st.selectbox("Elige la nota objetivo:", notas, index=9)
+    target_hz = librosa.note_to_hz(nota_obj)
+    
+    st.write(f"### Objetivo: {nota_obj} ({target_hz:.1f} Hz)")
+    
+    webrtc_ctx = webrtc_streamer(
+        key="tuner",
+        mode=WebRtcMode.SENDONLY,
+        audio_processor_factory=PitchProcessor,
+        media_stream_constraints={"audio": True, "video": False},
+    )
+
+    if webrtc_ctx.audio_processor:
+        pitch = webrtc_ctx.audio_processor.pitch
+        if pitch > 0:
+            st.metric("Tu frecuencia actual", f"{pitch:.1f} Hz")
+            diff = (pitch - target_hz) / target_hz * 100
+            bar_value = (diff + 10) / 20
+            st.progress(min(max(bar_value, 0), 1))
+            
+            if abs(diff) < 2:
+                st.success("¡AFINADO!")
+            elif diff < 0:
+                st.warning("Estás BAJO de tono. ¡Sube un poco!")
+            else:
+                st.warning("Estás ALTO de tono. ¡Baja un poco!")
+        else:
+            st.info("🎤 Cantando... esperando tono claro...")
